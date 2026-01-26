@@ -1,0 +1,147 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=0.9, maximum-scale=1.0, user-scalable=no">
+    <title>Crêpe-Master 🥞</title>
+    <link rel="stylesheet" href="style.css">
+</head>
+<body>
+    <!-- Écran de connexion -->
+    <div id="login-screen" class="screen active">
+        <div class="login-container">
+            <h1 class="logo">🥞 Crêpe-Master</h1>
+            <p class="tagline">Système de gestion de file de crêpes</p>
+            
+            <form id="login-form" onsubmit="return false;">
+                <div class="input-group">
+                    <input 
+                        type="text" 
+                        id="username-input" 
+                        placeholder="Nom d'utilisateur" 
+                        required
+                        autocomplete="off"
+                    >
+                </div>
+                
+                <div class="input-group">
+                    <input 
+                        type="password" 
+                        id="code-input" 
+                        placeholder="Code d'accès" 
+                        required
+                        autocomplete="off"
+                    >
+                </div>
+                
+                <button type="submit" class="btn-primary">Se connecter</button>
+                <div id="login-error" class="error-message"></div>
+            </form>
+        </div>
+    </div>
+
+    <!-- Écran principal -->
+    <div id="main-screen" class="screen">
+        <header>
+            <div class="header-content">
+                <h1>🥞 Crêpe-Master</h1>
+                <div class="user-info">
+                    <span id="current-username"></span>
+                    <button id="logout-btn" class="btn-logout">Déconnexion</button>
+                </div>
+            </div>
+        </header>
+
+        <main>
+            <!-- Statut de la session -->
+            <div id="session-status" class="session-status"></div>
+
+            <!-- Carte de statut utilisateur -->
+            <div class="status-card" id="user-status-card">
+                <div class="status-header">
+                    <h2>Ton Statut</h2>
+                    <div class="status-badge" id="priority-badge"></div>
+                </div>
+                
+                <div class="stats-grid">
+                    <div class="stat-item">
+                        <div class="stat-label">Position</div>
+                        <div class="stat-value" id="user-rank">-</div>
+                    </div>
+                    <div class="stat-item">
+                        <div class="stat-label">Crêpes mangées</div>
+                        <div class="stat-value" id="user-crepes">0</div>
+                    </div>
+                    <div class="stat-item">
+                        <div class="stat-label">Plaques actives</div>
+                        <div class="stat-value" id="active-plates">0</div>
+                    </div>
+                </div>
+
+                <div class="user-actions">
+                    <button id="add-crepe-btn" class="btn-primary">🥞 J'ai mangé une crêpe !</button>
+                    <button id="skip-turn-btn" class="btn-secondary">Passer mon tour</button>
+                </div>
+            </div>
+
+            <!-- File d'attente -->
+            <div class="queue-section">
+                <h2>File d'attente</h2>
+                <div id="queue-list" class="queue-list"></div>
+            </div>
+
+            <!-- Panneau admin (visible uniquement pour les admins) -->
+            <div id="admin-panel" class="admin-panel">
+                <h2>🔧 Panneau Admin</h2>
+                
+                <div class="admin-section">
+                    <label>
+                        Nombre de plaques:
+                        <input type="number" id="plates-input" min="1" max="10" value="2">
+                    </label>
+                    <button id="update-plates-btn" class="btn-admin">Mettre à jour</button>
+                </div>
+
+                <div class="admin-section">
+                    <label>
+                        Coût total de la session (€):
+                        <input type="number" id="cost-input" min="0" step="0.01" value="0">
+                    </label>
+                    <button id="update-cost-btn" class="btn-admin">Mettre à jour</button>
+                </div>
+
+                <div class="admin-section">
+                    <h3>Gestion des crêpes</h3>
+                    <div id="admin-participants-list" class="admin-participants-list"></div>
+                </div>
+
+                <div class="admin-section">
+                    <button id="close-session-btn" class="btn-danger">🔒 Clôturer la session</button>
+                    <button id="reopen-session-btn" class="btn-admin" style="display: none;">🔓 Rouvrir la session</button>
+                </div>
+            </div>
+        </main>
+    </div>
+
+    <!-- Modal de clôture -->
+    <div id="close-modal" class="modal">
+        <div class="modal-content">
+            <h2>📊 Session Clôturée</h2>
+            <p class="modal-info">La session de crêpes est terminée !</p>
+            
+            <div id="final-results" class="final-results"></div>
+            
+            <button id="close-modal-btn" class="btn-primary">Fermer</button>
+        </div>
+    </div>
+
+    <!-- Toast de notification -->
+    <div id="toast" class="toast"></div>
+
+    <!-- Supabase Client via CDN -->
+    <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+    
+    <!-- Application JavaScript -->
+    <script src="app.js"></script>
+</body>
+</html>
