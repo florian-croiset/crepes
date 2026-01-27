@@ -1120,6 +1120,14 @@ async function createSession(name, code) {
     }
 }
 
+/**
+ * Chercher une session par son code
+ */
+async function findSession(code) {
+    const { data, error } = await supabaseClient.from('sessions').select('*').eq('session_code', code).maybeSingle();
+    return error ? null : data;
+}
+
 // ==========================================
 // Fonctions de base de données
 // ==========================================
@@ -1127,50 +1135,70 @@ async function createSession(name, code) {
 /**
  * Connexion utilisateur
  */
-async function login(username, code) {
+/**
+ * Se connecter à la session
+ */
+async function login(username, code, userId = null) {
     if (!appState.currentSession) {
-        elements.loginError.textContent = '❌ Aucune session sélectionnée';
+        if (elements.loginError) elements.loginError.textContent = '❌ Aucune session sélectionnée';
         return false;
     }
     
     try {
-        // Chercher l'utilisateur dans cette session
-        let { data, error } = await supabaseClient
-            .from('participants')
-            .select('*')
-            .eq('username', username)
-            .eq('session_id', appState.currentSession.id)
-            .maybeSingle();
-        
-        if (error && error.code !== 'PGRST116') throw error;
-        
-        // Si l'utilisateur n'existe pas, le créer
-        if (!data) {
-            const { data: newUser, error: createError } = await supabaseClient
-                .from('participants')
-                .insert({
-                    username: username,
-                    code: code,
-                    session_id: appState.currentSession.id,
-                    crepe_count: 0,
-                    is_admin: false
-                })
-                .select()
-                .single();
-            
-            if (createError) throw createError;
-            data = newUser;
-            showToast(`✅ Compte créé ! Bienvenue ${username} !`);
+        let data;
+        if (userId) {
+            const res = await supabaseClient.from('participants').select('*').eq('id', userId).eq('session_id', appState.currentSession.id).maybeSingle();
+            data = res.data;
+            if (!data) return false;
         } else {
-            // Vérifier le code
-            if (data.code !== code) {
-                elements.loginError.textContent = '❌ Mot de passe incorrect';
+            // ... (ici ton code actuel : let { data, error } = await supabaseClient...)
+            // Connexion classique via Nom/Code
+            const result = await supabaseClient
+                .from('participants')
+                .select('*')
+                .eq('username', username)
+                .eq('session_id', appState.currentSession.id)
+                .maybeSingle();
+            data = result.data;
+
+            if (!data) {
+                // Créer le compte s'il n'existe pas
+                const { data: newUser, error: createError } = await supabaseClient
+                    .from('participants')
+                    .insert({
+                        username: username,
+                        code: code,
+                        session_id: appState.currentSession.id,
+                        crepe_count: 0,
+                        is_admin: false
+                    })
+                    .select().single();
+                if (createError) throw createError;
+                data = newUser;
+            } else if (data.code !== code) {
+                if (elements.loginError) elements.loginError.textContent = '❌ Mot de passe incorrect';
                 return false;
             }
         }
-        
+
+        // --- Application de l'état ---
         appState.currentUser = data;
-        elements.currentUsername.textContent = username;
+        elements.currentUsername.textContent = data.username;
+        localStorage.setItem('crepe_user_id', data.id); // On sauve l'ID du compte
+
+        // --- Changement d'écran (Noms vérifiés) ---
+        elements.loginScreen.classList.remove('active');
+        elements.mainScreen.classList.add('active');
+        
+        await loadInitialData();
+        subscribeToRealtimeUpdates();
+        return true;
+        
+    } catch (err) {
+        console.error('Erreur login:', err);
+        return false;
+    }
+}
         
         // Proposer l'enregistrement biométrique
         /*if (elements.biometricBtn.style.display === 'block' && 
@@ -1181,25 +1209,6 @@ async function login(username, code) {
                 }
             }, 1000);
         }*/
-        
-        // Basculer vers l'écran principal
-        elements.loginScreen.classList.remove('active');
-        elements.mainScreen.classList.add('active');
-        
-        // Charger les données initiales
-        await loadInitialData();
-        
-        // S'abonner aux changements temps réel
-        subscribeToRealtimeUpdates();
-        
-        return true;
-        
-    } catch (err) {
-        console.error('Erreur de connexion:', err);
-        elements.loginError.textContent = '❌ Erreur de connexion';
-        return false;
-    }
-}
 
 /**
  * Charge les données initiales
@@ -1989,17 +1998,23 @@ elements.createTab.addEventListener('click', () => {
     elements.joinSessionForm.classList.remove('active');
 });
 
-// Rejoindre une session
 elements.joinSessionForm.addEventListener('submit', async (e) => {
     e.preventDefault();
     const sessionCode = elements.sessionCodeInput.value.trim().toUpperCase();
-    
-    if (!sessionCode) {
-        elements.sessionError.textContent = '❌ Veuillez entrer un code';
-        return;
+    const savedUserId = localStorage.getItem('crepe_user_id');
+
+    const session = await findSession(sessionCode);
+    if (!session) return showToast('❌ Session introuvable');
+    appState.currentSession = session;
+
+    if (savedUserId) {
+        if (await login(null, null, savedUserId)) {
+            elements.sessionScreen.classList.remove('active');
+            return;
+        }
     }
-    
-    await joinSession(sessionCode);
+    elements.sessionScreen.classList.remove('active');
+    elements.loginScreen.classList.add('active');
 });
 
 // Créer une session
