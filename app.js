@@ -1170,14 +1170,14 @@ async function login(username, code) {
         elements.currentUsername.textContent = username;
         
         // Proposer l'enregistrement biométrique
-        if (elements.biometricBtn.style.display === 'block' && 
+        /*if (elements.biometricBtn.style.display === 'block' && 
             !localStorage.getItem(`biometric_${username}`)) {
             setTimeout(async () => {
                 if (confirm('Veux-tu enregistrer ton empreinte pour te connecter plus rapidement la prochaine fois ?')) {
                     await registerBiometric(username, code);
                 }
             }, 1000);
-        }
+        }*/
         
         // Basculer vers l'écran principal
         elements.loginScreen.classList.remove('active');
