@@ -77,7 +77,6 @@ const elements = {
     usernameInput: document.getElementById('username-input'),
     codeInput: document.getElementById('code-input'),
     loginError: document.getElementById('login-error'),
-    biometricBtn: document.getElementById('biometric-btn'),
     
     // Header
     currentUsername: document.getElementById('current-username'),
@@ -1239,28 +1238,94 @@ async function loadInitialData() {
 /**
  * S'abonner aux mises à jour temps réel
  */
-function subscribeToRealtimeUpdates() {
-    // Abonnement aux changements de participants
+function subscribeToNotifications() {
     supabaseClient
-        .channel('participants-changes')
-        .on('postgres_changes', 
-            { event: '*', schema: 'public', table: 'participants' }, 
-            (payload) => {
-                handleParticipantChange(payload);
+        .channel('notifications')
+        .on('postgres_changes', {
+            event: 'INSERT',
+            schema: 'public',
+            table: 'notifications',
+            filter: `session_id=eq.${appState.currentSession.id}`
+        }, (payload) => {
+            const notification = payload.new;
+            
+            if (notification.type === 'vibration_test') {
+                // Vibration de test
+                if ('vibrate' in navigator) {
+                    navigator.vibrate(notification.data.pattern);
+                }
+                showToast('📳 Test de vibration reçu !');
             }
-        )
+        })
         .subscribe();
+}
+
+/**
+ * Démarrer les vibrations prioritaires en arrière-plan
+ */
+function startPriorityVibrations() {
+    // Vérifier si on est prioritaire
+    const checkAndVibrate = () => {
+        if (!appState.currentUser) return;
+        
+        const currentUserData = appState.participants.find(p => p.id === appState.currentUser.id);
+        if (!currentUserData) return;
+        
+        const rank = calculateRank(currentUserData, appState.participants);
+        const isPriorityStatus = isPriority(rank, appState.settings.num_plates);
+        
+        if (isPriorityStatus && !appState.settings.is_closed) {
+            if ('vibrate' in navigator) {
+                navigator.vibrate([200, 100, 200]); // Pattern: vibrer-pause-vibrer
+            }
+            
+            // Notification du navigateur (même en arrière-plan)
+            if ('Notification' in window && Notification.permission === 'granted') {
+                new Notification('🥞 Crêpe-Master', {
+                    body: 'Tu es PRIORITAIRE ! C\'est ton tour 🎉',
+                    icon: '🥞',
+                    vibrate: [200, 100, 200],
+                    tag: 'crepe-priority',
+                    requireInteraction: false
+                });
+            }
+        }
+    };
     
-    // Abonnement aux changements de settings
-    supabaseClient
-        .channel('settings-changes')
-        .on('postgres_changes', 
-            { event: '*', schema: 'public', table: 'settings' }, 
-            (payload) => {
-                handleSettingsChange(payload);
-            }
-        )
-        .subscribe();
+    // Vérifier toutes les 60 secondes
+    setInterval(checkAndVibrate, 60000);
+}
+
+/**
+ * Demander la permission pour les notifications
+ */
+async function requestNotificationPermission() {
+    if ('Notification' in window && Notification.permission === 'default') {
+        const permission = await Notification.requestPermission();
+        if (permission === 'granted') {
+            showToast('🔔 Notifications activées pour les alertes prioritaires');
+        }
+    }
+}
+
+// MODIFIER la fonction loadInitialData pour inclure ces nouvelles fonctions (ligne ~637)
+async function loadInitialData() {
+    try {
+        // ... code existant ...
+        
+        // S'abonner aux notifications
+        subscribeToNotifications();
+        
+        // Démarrer les vibrations prioritaires
+        startPriorityVibrations();
+        
+        // Demander permission notifications (pour background)
+        await requestNotificationPermission();
+        
+    } catch (err) {
+        console.error('Erreur lors du chargement:', err);
+        showToast('❌ Erreur de chargement');
+    }
 }
 
 /**
@@ -1528,13 +1593,33 @@ async function reopenSession() {
 /**
  * Tester les vibrations (admin)
  */
-function testVibration() {
-    if ('vibrate' in navigator) {
-        // Pattern de test : 3 vibrations
-        navigator.vibrate([200, 100, 200, 100, 200]);
-        showToast('📳 Test de vibration envoyé ! Tu devrais sentir 3 vibrations.');
-    } else {
-        showToast('❌ Les vibrations ne sont pas supportées sur cet appareil');
+async function testVibration() {
+    try {
+        // Créer une notification pour tous les appareils
+        const { error } = await supabaseClient
+            .from('notifications')
+            .insert({
+                session_id: appState.currentSession.id,
+                type: 'vibration_test',
+                data: { pattern: [200, 100, 200, 100, 200] }
+            });
+        
+        if (error) throw error;
+        
+        showToast('📳 Test de vibration envoyé à tous les appareils !');
+        
+        // Supprimer la notification après 5 secondes
+        setTimeout(async () => {
+            await supabaseClient
+                .from('notifications')
+                .delete()
+                .eq('session_id', appState.currentSession.id)
+                .eq('type', 'vibration_test');
+        }, 5000);
+        
+    } catch (err) {
+        console.error('Erreur test vibration:', err);
+        showToast('❌ Erreur lors du test');
     }
 }
 
