@@ -560,6 +560,7 @@ async function switchToSession(session) {
     if (!confirm(`Basculer vers la session "${session.session_name}" ?`)) return;
     
     appState.currentSession = session;
+    subscribeToNotifications();
     elements.sessionsModal.classList.remove('active');
     
     // Recharger les données
@@ -1060,6 +1061,7 @@ async function joinSession(sessionCode) {
         }
         
         appState.currentSession = data;
+        subscribeToNotifications();
         
         // Passer à l'écran de connexion
         elements.sessionScreen.classList.remove('active');
@@ -1102,6 +1104,7 @@ async function createSession(name, code) {
         }
         
         appState.currentSession = data;
+        subscribeToNotifications();
         
         // Passer à l'écran de connexion
         elements.sessionScreen.classList.remove('active');
@@ -1298,29 +1301,43 @@ function subscribeToRealtimeUpdates() {
 // GESTION DES NOTIFICATIONS ET VIBRATIONS
 // ==========================================\r
 
-/** * S'abonner aux notifications (vibrations triggers par admin) 
+/**
+ * S'abonner aux notifications (vibrations)
+ * VERSION CORRIGÉE - Canal isolé
  */
 function subscribeToNotifications() {
+    // On s'assure d'avoir l'ID de session
+    if (!appState.currentSession || !appState.currentSession.id) return;
+
+    console.log("📡 Démarrage de l'écoute des notifications...");
+
     supabaseClient
-        .channel('notifications_channel') // Nom de channel unique pour éviter les conflits
+        .channel('channel_notifications_vibrations') // Nom UNIQUE pour éviter les conflits
         .on('postgres_changes', {
             event: 'INSERT',
             schema: 'public',
             table: 'notifications',
             filter: `session_id=eq.${appState.currentSession.id}`
         }, (payload) => {
+            console.log("🔔 REÇU DU SERVEUR :", payload.new);
             const notification = payload.new;
-            
+
+            // Cas : Test de vibration
             if (notification.type === 'vibration_test') {
-                // Vibration de test
                 if ('vibrate' in navigator) {
-                    // Pattern : vibration courte, pause, vibration courte
-                    navigator.vibrate(notification.data.pattern || [200, 100, 200]);
+                    console.log("📳 VIBRATION ACTIVÉE");
+                    // Force un pattern si celui de la base est vide
+                    const pattern = notification.data.pattern || [200, 100, 200]; 
+                    navigator.vibrate(pattern);
                 }
-                showToast('📳 Test de vibration reçu !');
+                showToast('📳 Signal de test reçu !');
             }
         })
-        .subscribe();
+        .subscribe((status) => {
+            if (status === 'SUBSCRIBED') {
+                console.log("✅ L'oreille est ouverte (Notifications)");
+            }
+        });
 }
 
 /** * Démarrer les vibrations prioritaires en arrière-plan 
