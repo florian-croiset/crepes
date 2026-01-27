@@ -1952,6 +1952,6 @@ if (SUPABASE_URL === 'YOUR_SUPABASE_URL' || SUPABASE_ANON_KEY === 'YOUR_SUPABASE
 }
 
 // Vérifier la disponibilité de l'authentification biométrique
-checkBiometricAvailability();
+//checkBiometricAvailability();
 
 console.log('🥞 Crêpe-Master initialisé');
