@@ -915,8 +915,7 @@ function updateSessionStatus() {
 /**
  * Vérifier si l'authentification biométrique est disponible
  */
-async function checkBiometricAvailability() {
-    // Vérifier si on est en HTTPS ou localhost
+/*async function checkBiometricAvailability() {
     const isSecureContext = window.isSecureContext;
     const isLocalhost = window.location.hostname === 'localhost';
     
@@ -936,12 +935,12 @@ async function checkBiometricAvailability() {
             console.log('❌ Biométrie non disponible:', err.message);
         }
     }
-}
+}*/
 
 /**
  * Enregistrer les identifiants biométriques
  */
-async function registerBiometric(username, password) {
+/*async function registerBiometric(username, password) {
     try {
         const challenge = new Uint8Array(32);
         window.crypto.getRandomValues(challenge);
@@ -992,11 +991,11 @@ async function registerBiometric(username, password) {
         return false;
     }
 }
-
+*/
 /**
  * Connexion biométrique
  */
-async function loginWithBiometric() {
+/*async function loginWithBiometric() {
     const username = elements.usernameInput.value.trim();
     
     if (!username) {
@@ -1042,7 +1041,7 @@ async function loginWithBiometric() {
         console.error('Erreur de connexion biométrique:', err);
         elements.loginError.textContent = '❌ Authentification échouée';
     }
-}
+}*/
 
 /**
  * Rejoindre une session existante
@@ -1905,7 +1904,7 @@ elements.loginForm.addEventListener('submit', async (e) => {
 });
 
 // Connexion biométrique
-elements.biometricBtn.addEventListener('click', loginWithBiometric);
+//elements.biometricBtn.addEventListener('click', loginWithBiometric);
 
 // Déconnexion
 elements.logoutBtn.addEventListener('click', logout);
