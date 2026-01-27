@@ -1216,30 +1216,93 @@ async function loadInitialData() {
         appState.settings = {
             num_plates: appState.currentSession.num_plates,
             is_closed: appState.currentSession.is_closed,
-            read_only: appState.currentSession.read_only || false,
+            read_only: appState.currentSession.read_only,
             total_cost: appState.currentSession.total_cost
         };
         
-        // Mettre à jour l'affichage
         updateUI();
         
-        // Vérifier si la session est clôturée
-        if (appState.settings.is_closed) {
-            showCloseModal();
-        }
+        // AJOUTER CES 3 LIGNES ICI ↓↓↓
+        subscribeToNotifications();
+        startPriorityVibrations();
+        await requestNotificationPermission();
         
     } catch (err) {
-        console.error('Erreur de chargement des données:', err);
-        showToast('❌ Erreur de chargement des données');
+        console.error('Erreur lors du chargement:', err);
+        showToast('❌ Erreur de chargement');
     }
 }
 
+
 /**
- * S'abonner aux mises à jour temps réel
+ * S'abonner aux mises à jour des données (Participants et Session)
+ * VERSION CORRIGÉE
+ */
+function subscribeToRealtimeUpdates() {
+    // ⚠️ NE PAS mettre removeAllChannels() ici, cela tue les autres abonnements (notifications)
+
+    const updatesChannel = supabaseClient.channel('room_updates');
+
+    updatesChannel
+        .on('postgres_changes', {
+            event: '*',
+            schema: 'public',
+            table: 'participants',
+            filter: `session_id=eq.${appState.currentSession.id}`
+        }, (payload) => {
+            // Gestion des événements Participants
+            if (payload.eventType === 'INSERT') {
+                // Évite les doublons si l'event arrive deux fois
+                const exists = appState.participants.find(p => p.id === payload.new.id);
+                if (!exists) {
+                    appState.participants.push(payload.new);
+                    showToast(`👋 ${payload.new.name} a rejoint !`);
+                }
+            } 
+            else if (payload.eventType === 'UPDATE') {
+                const index = appState.participants.findIndex(p => p.id === payload.new.id);
+                if (index !== -1) {
+                    appState.participants[index] = payload.new;
+                }
+            } 
+            else if (payload.eventType === 'DELETE') {
+                appState.participants = appState.participants.filter(p => p.id !== payload.old.id);
+            }
+            
+            updateUI();
+        })
+        .on('postgres_changes', {
+            event: 'UPDATE',
+            schema: 'public',
+            table: 'sessions',
+            filter: `id=eq.${appState.currentSession.id}`
+        }, (payload) => {
+            // Mise à jour de la session
+            appState.settings.num_plates = payload.new.num_plates;
+            appState.settings.is_closed = payload.new.is_closed;
+            if (payload.new.total_cost) appState.settings.total_cost = payload.new.total_cost;
+            
+            updateUI();
+        })
+        .subscribe((status) => {
+            if (status === 'SUBSCRIBED') {
+                console.log('✅ Connecté aux mises à jour (Participants & Session)');
+            } else if (status === 'CHANNEL_ERROR') {
+                console.error('❌ Erreur de connexion Realtime');
+            }
+        });
+}
+
+
+// ==========================================\r
+// GESTION DES NOTIFICATIONS ET VIBRATIONS
+// ==========================================\r
+
+/** * S'abonner aux notifications (vibrations triggers par admin) 
  */
 function subscribeToNotifications() {
     supabaseClient
-        .channel('notifications')
+        .channel('notifications_channel') // Nom de channel unique pour éviter les conflits
         .on('postgres_changes', {
             event: 'INSERT',
             schema: 'public',
@@ -1251,7 +1314,8 @@ function subscribeToNotifications() {
             if (notification.type === 'vibration_test') {
                 // Vibration de test
                 if ('vibrate' in navigator) {
-                    navigator.vibrate(notification.data.pattern);
+                    // Pattern : vibration courte, pause, vibration courte
+                    navigator.vibrate(notification.data.pattern || [200, 100, 200]);
                 }
                 showToast('📳 Test de vibration reçu !');
             }
@@ -1259,71 +1323,120 @@ function subscribeToNotifications() {
         .subscribe();
 }
 
-/**
- * Démarrer les vibrations prioritaires en arrière-plan
+/** * Démarrer les vibrations prioritaires en arrière-plan 
  */
 function startPriorityVibrations() {
     // Vérifier si on est prioritaire
     const checkAndVibrate = () => {
-        if (!appState.currentUser) return;
+        // Sécurités de base
+        if (!appState.currentUser || !appState.currentSession || appState.settings.is_closed) return;
         
         const currentUserData = appState.participants.find(p => p.id === appState.currentUser.id);
         if (!currentUserData) return;
         
+        // Calcul du rang (Assure-toi que calculateRank et isPriority existent dans ton code)
         const rank = calculateRank(currentUserData, appState.participants);
         const isPriorityStatus = isPriority(rank, appState.settings.num_plates);
         
-        if (isPriorityStatus && !appState.settings.is_closed) {
+        if (isPriorityStatus) {
+            console.log('🔔 Tu es prioritaire ! Vibration...');
+            
+            // 1. Vibration mobile
             if ('vibrate' in navigator) {
-                navigator.vibrate([200, 100, 200]); // Pattern: vibrer-pause-vibrer
+                navigator.vibrate([500, 200, 500]); // Vibration plus longue pour le tour de jeu
             }
             
-            // Notification du navigateur (même en arrière-plan)
+            // 2. Notification système (utile si l'écran est éteint ou app en background)
             if ('Notification' in window && Notification.permission === 'granted') {
-                new Notification('🥞 Crêpe-Master', {
-                    body: 'Tu es PRIORITAIRE ! C\'est ton tour 🎉',
-                    icon: '🥞',
-                    vibrate: [200, 100, 200],
-                    tag: 'crepe-priority',
-                    requireInteraction: false
-                });
+                try {
+                    new Notification('🥞 À TOI DE JOUER !', {
+                        body: 'Une plaque s\'est libérée, fonce !',
+                        icon: 'favicon.ico', // ou un emoji si supporté par l'OS
+                        tag: 'crepe-priority', // Évite d'empiler 50 notifs
+                        renotify: true, // Vibre à chaque fois même si la notif est déjà là
+                        requireInteraction: true // Reste affiché
+                    });
+                } catch (e) {
+                    console.log('Erreur notif systeme:', e);
+                }
             }
         }
     };
     
-    // Vérifier toutes les 60 secondes
-    setInterval(checkAndVibrate, 60000);
+    // Vérifier toutes les 60 secondes (ajuste selon tes besoins)
+    if (appState.priorityReminderInterval) clearInterval(appState.priorityReminderInterval);
+    appState.priorityReminderInterval = setInterval(checkAndVibrate, 60000);
 }
 
-/**
- * Demander la permission pour les notifications
+/** * Demander la permission pour les notifications système
  */
 async function requestNotificationPermission() {
-    if ('Notification' in window && Notification.permission === 'default') {
+    if (!('Notification' in window)) return;
+    
+    if (Notification.permission === 'default') {
         const permission = await Notification.requestPermission();
         if (permission === 'granted') {
-            showToast('🔔 Notifications activées pour les alertes prioritaires');
+            showToast('🔔 Notifications activées');
         }
     }
 }
 
-// MODIFIER la fonction loadInitialData pour inclure ces nouvelles fonctions (ligne ~637)
-async function loadInitialData() {
-    try {
-        // ... code existant ...
+
+/** * Démarrer les vibrations prioritaires en arrière-plan 
+ */
+function startPriorityVibrations() {
+    // Vérifier si on est prioritaire
+    const checkAndVibrate = () => {
+        // Sécurités de base
+        if (!appState.currentUser || !appState.currentSession || appState.settings.is_closed) return;
         
-        // S'abonner aux notifications
-        subscribeToNotifications();
+        const currentUserData = appState.participants.find(p => p.id === appState.currentUser.id);
+        if (!currentUserData) return;
         
-        // Démarrer les vibrations prioritaires
-        startPriorityVibrations();
+        // Calcul du rang (Assure-toi que calculateRank et isPriority existent dans ton code)
+        const rank = calculateRank(currentUserData, appState.participants);
+        const isPriorityStatus = isPriority(rank, appState.settings.num_plates);
         
-        // Demander permission notifications (pour background)
-        await requestNotificationPermission();
-        
-    } catch (err) {
-        console.error('Erreur lors du chargement:', err);
-        showToast('❌ Erreur de chargement');
+        if (isPriorityStatus) {
+            console.log('🔔 Tu es prioritaire ! Vibration...');
+            
+            // 1. Vibration mobile
+            if ('vibrate' in navigator) {
+                navigator.vibrate([500, 200, 500]); // Vibration plus longue pour le tour de jeu
+            }
+            
+            // 2. Notification système (utile si l'écran est éteint ou app en background)
+            if ('Notification' in window && Notification.permission === 'granted') {
+                try {
+                    new Notification('🥞 À TOI DE JOUER !', {
+                        body: 'Une plaque s\'est libérée, fonce !',
+                        icon: 'favicon.ico', // ou un emoji si supporté par l'OS
+                        tag: 'crepe-priority', // Évite d'empiler 50 notifs
+                        renotify: true, // Vibre à chaque fois même si la notif est déjà là
+                        requireInteraction: true // Reste affiché
+                    });
+                } catch (e) {
+                    console.log('Erreur notif systeme:', e);
+                }
+            }
+        }
+    };
+    
+    // Vérifier toutes les 60 secondes (ajuste selon tes besoins)
+    if (appState.priorityReminderInterval) clearInterval(appState.priorityReminderInterval);
+    appState.priorityReminderInterval = setInterval(checkAndVibrate, 60000);
+}
+
+/** * Demander la permission pour les notifications système
+ */
+async function requestNotificationPermission() {
+    if (!('Notification' in window)) return;
+    
+    if (Notification.permission === 'default') {
+        const permission = await Notification.requestPermission();
+        if (permission === 'granted') {
+            showToast('🔔 Notifications activées');
+        }
     }
 }
 
