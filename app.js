@@ -2100,3 +2100,207 @@ if (SUPABASE_URL === 'YOUR_SUPABASE_URL' || SUPABASE_ANON_KEY === 'YOUR_SUPABASE
 //checkBiometricAvailability();
 
 console.log('🥞 Crêpe-Master initialisé');
+
+// ==========================================
+// ==========================================
+// Réinitialisation de mot de passe via Discord (VERSION EDGE FUNCTION)
+// ==========================================
+
+/**
+ * Envoyer un code de réinitialisation via Discord
+ * Utilise la Edge Function Supabase qui contrôle le bot Discord
+ */
+async function sendDiscordResetCode() {
+    const username = document.getElementById('reset-username').value.trim();
+    const errorDiv = document.getElementById('reset-error-1');
+    
+    if (!username) {
+        errorDiv.textContent = '❌ Entre ton nom d\'utilisateur';
+        return;
+    }
+    
+    try {
+        // Chercher l'utilisateur dans la session actuelle
+        const { data: participant, error } = await supabaseClient
+            .from('participants')
+            .select('*')
+            .eq('username', username)
+            .eq('session_id', appState.currentSession.id)
+            .single();
+        
+        if (error || !participant) {
+            errorDiv.textContent = '❌ Utilisateur introuvable';
+            return;
+        }
+        
+        if (!participant.discord_id) {
+            errorDiv.textContent = '❌ Aucun ID Discord associé à ce compte. Contacte un admin.';
+            return;
+        }
+        
+        // Générer un code aléatoire de 6 chiffres
+        const resetCode = Math.floor(100000 + Math.random() * 900000).toString();
+        
+        // Sauvegarder le code dans la base (expire dans 10 minutes)
+        const expiresAt = new Date(Date.now() + 10 * 60 * 1000).toISOString();
+        
+        const { error: insertError } = await supabaseClient
+            .from('password_reset_codes')
+            .insert({
+                participant_id: participant.id,
+                reset_code: resetCode,
+                expires_at: expiresAt,
+                used: false
+            });
+        
+        if (insertError) throw insertError;
+        
+        // Message à envoyer sur Discord
+        const discordMessage = `🔐 **Code de réinitialisation Crêpe-Master**\n\n` +
+                              `Ton code : **${resetCode}**\n\n` +
+                              `⏱️ Ce code expire dans 10 minutes.\n` +
+                              `🔒 Ne le partage avec personne !`;
+        
+        // Appeler la Edge Function Supabase
+        showToast('📨 Envoi du code en cours...');
+        
+        // IMPORTANT: Remplace TON_PROJECT_REF par ton vrai project ref
+        const SUPABASE_PROJECT_REF = SUPABASE_URL.split('//')[1].split('.')[0];
+        const edgeFunctionUrl = `${SUPABASE_URL}/functions/v1/send-discord-dm`;
+        
+        const response = await fetch(edgeFunctionUrl, {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+                'Authorization': `Bearer ${SUPABASE_ANON_KEY}`
+            },
+            body: JSON.stringify({
+                discord_id: participant.discord_id,
+                message: discordMessage,
+                participant_id: participant.id
+            })
+        });
+        
+        const result = await response.json();
+        
+        if (!response.ok) {
+            throw new Error(result.error || 'Erreur lors de l\'envoi');
+        }
+        
+        // Succès !
+        showToast('✅ Code envoyé sur Discord ! Vérifie tes DMs.');
+        
+        // Passer à l'étape 2
+        document.getElementById('reset-step-1').style.display = 'none';
+        document.getElementById('reset-step-2').style.display = 'block';
+        
+        // Stocker temporairement l'ID participant
+        appState.resetParticipantId = participant.id;
+        
+    } catch (err) {
+        console.error('Erreur d\'envoi du code:', err);
+        errorDiv.textContent = `❌ ${err.message || 'Erreur lors de l\'envoi du code'}`;
+    }
+}
+
+/**
+ * Réinitialiser le mot de passe avec le code
+ * (CETTE FONCTION RESTE IDENTIQUE)
+ */
+async function resetPasswordWithCode() {
+    const code = document.getElementById('reset-code-input').value.trim();
+    const newPassword = document.getElementById('new-password-input').value.trim();
+    const confirmPassword = document.getElementById('confirm-password-input').value.trim();
+    const errorDiv = document.getElementById('reset-error-2');
+    
+    if (!code || !newPassword || !confirmPassword) {
+        errorDiv.textContent = '❌ Remplis tous les champs';
+        return;
+    }
+    
+    if (newPassword !== confirmPassword) {
+        errorDiv.textContent = '❌ Les mots de passe ne correspondent pas';
+        return;
+    }
+    
+    if (newPassword.length < 4) {
+        errorDiv.textContent = '❌ Le mot de passe doit faire au moins 4 caractères';
+        return;
+    }
+    
+    try {
+        // Vérifier le code
+        const { data: resetData, error: codeError } = await supabaseClient
+            .from('password_reset_codes')
+            .select('*')
+            .eq('participant_id', appState.resetParticipantId)
+            .eq('reset_code', code)
+            .eq('used', false)
+            .single();
+        
+        if (codeError || !resetData) {
+            errorDiv.textContent = '❌ Code invalide ou expiré';
+            return;
+        }
+        
+        // Vérifier l'expiration
+        if (new Date(resetData.expires_at) < new Date()) {
+            errorDiv.textContent = '❌ Ce code a expiré';
+            return;
+        }
+        
+        // Mettre à jour le mot de passe
+        const { error: updateError } = await supabaseClient
+            .from('participants')
+            .update({ code: newPassword })
+            .eq('id', appState.resetParticipantId);
+        
+        if (updateError) throw updateError;
+        
+        // Marquer le code comme utilisé
+        await supabaseClient
+            .from('password_reset_codes')
+            .update({ used: true })
+            .eq('id', resetData.id);
+        
+        // Fermer le modal et afficher un message de succès
+        document.getElementById('reset-password-modal').classList.remove('active');
+        showToast('✅ Mot de passe réinitialisé ! Tu peux te connecter.');
+        
+        // Réinitialiser le modal
+        document.getElementById('reset-step-1').style.display = 'block';
+        document.getElementById('reset-step-2').style.display = 'none';
+        document.getElementById('reset-username').value = '';
+        document.getElementById('reset-code-input').value = '';
+        document.getElementById('new-password-input').value = '';
+        document.getElementById('confirm-password-input').value = '';
+        errorDiv.textContent = '';
+        document.getElementById('reset-error-1').textContent = '';
+        
+    } catch (err) {
+        console.error('Erreur de réinitialisation:', err);
+        errorDiv.textContent = '❌ Erreur lors de la réinitialisation';
+    }
+}
+
+// Événements pour le reset de mot de passe
+document.getElementById('forgot-password-link').addEventListener('click', (e) => {
+    e.preventDefault();
+    document.getElementById('reset-password-modal').classList.add('active');
+});
+
+document.getElementById('close-reset-modal').addEventListener('click', () => {
+    document.getElementById('reset-password-modal').classList.remove('active');
+    // Réinitialiser le modal
+    document.getElementById('reset-step-1').style.display = 'block';
+    document.getElementById('reset-step-2').style.display = 'none';
+    document.getElementById('reset-username').value = '';
+    document.getElementById('reset-code-input').value = '';
+    document.getElementById('new-password-input').value = '';
+    document.getElementById('confirm-password-input').value = '';
+    document.getElementById('reset-error-1').textContent = '';
+    document.getElementById('reset-error-2').textContent = '';
+});
+
+document.getElementById('send-discord-code-btn').addEventListener('click', sendDiscordResetCode);
+document.getElementById('reset-password-btn').addEventListener('click', resetPasswordWithCode);

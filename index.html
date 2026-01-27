@@ -92,7 +92,37 @@
                     🔐 Connexion par empreinte
                 </button>
                 <div id="login-error" class="error-message"></div>
+                <a href="#" id="forgot-password-link" style="display: block; text-align: center; margin-top: 15px; color: var(--accent-primary); text-decoration: none; font-size: 0.9rem;">Mot de passe oublié ?</a>
             </form>
+        </div>
+    </div>
+    <!-- Modal de réinitialisation de mot de passe -->
+    <div id="reset-password-modal" class="modal">
+        <div class="modal-content" style="max-width: 500px;">
+            <h2>🔐 Réinitialiser le mot de passe</h2>
+            <div id="reset-step-1" class="reset-step active">
+                <p class="modal-info">Entre ton nom d'utilisateur pour recevoir un code sur Discord</p>
+                <div class="input-group">
+                    <input type="text" id="reset-username" placeholder="Nom d'utilisateur" autocomplete="off">
+                </div>
+                <button id="send-discord-code-btn" class="btn-primary">📨 Envoyer le code</button>
+                <div id="reset-error-1" class="error-message"></div>
+            </div>
+            <div id="reset-step-2" class="reset-step" style="display: none;">
+                <p class="modal-info">Entre le code reçu sur Discord et ton nouveau mot de passe</p>
+                <div class="input-group">
+                    <input type="text" id="reset-code-input" placeholder="Code de vérification" autocomplete="off">
+                </div>
+                <div class="input-group">
+                    <input type="password" id="new-password-input" placeholder="Nouveau mot de passe" autocomplete="off">
+                </div>
+                <div class="input-group">
+                    <input type="password" id="confirm-password-input" placeholder="Confirmer le mot de passe" autocomplete="off">
+                </div>
+                <button id="reset-password-btn" class="btn-primary">✅ Réinitialiser</button>
+                <div id="reset-error-2" class="error-message"></div>
+            </div>
+            <button id="close-reset-modal" class="btn-secondary" style="margin-top: 20px;">Annuler</button>
         </div>
     </div>
 

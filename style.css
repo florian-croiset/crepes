@@ -1078,3 +1078,11 @@ main {
     min-height: 100vh;
     padding: 20px;
 }
+/* Reset password modal */
+.reset-step {
+    display: none;
+}
+
+.reset-step.active {
+    display: block;
+}
