@@ -7,8 +7,60 @@
     <link rel="stylesheet" href="style.css">
 </head>
 <body>
+    <!-- Écran de sélection de session -->
+    <div id="session-screen" class="screen active">
+        <div class="login-container">
+            <h1 class="logo">🥞 Crêpe-Master</h1>
+            <p class="tagline">Rejoins ou crée une session</p>
+            
+            <div class="session-tabs">
+                <button id="join-tab" class="tab-btn active">Rejoindre</button>
+                <button id="create-tab" class="tab-btn">Créer</button>
+            </div>
+
+            <!-- Rejoindre une session -->
+            <form id="join-session-form" class="tab-content active">
+                <div class="input-group">
+                    <input 
+                        type="text" 
+                        id="session-code-input" 
+                        placeholder="Code de session" 
+                        required
+                        autocomplete="off"
+                    >
+                </div>
+                <button type="submit" class="btn-primary">Rejoindre la session</button>
+                <div id="session-error" class="error-message"></div>
+            </form>
+
+            <!-- Créer une session -->
+            <form id="create-session-form" class="tab-content">
+                <div class="input-group">
+                    <input 
+                        type="text" 
+                        id="new-session-name" 
+                        placeholder="Nom de la session" 
+                        required
+                        autocomplete="off"
+                    >
+                </div>
+                <div class="input-group">
+                    <input 
+                        type="text" 
+                        id="new-session-code" 
+                        placeholder="Code de session (unique)" 
+                        required
+                        autocomplete="off"
+                    >
+                </div>
+                <button type="submit" class="btn-primary">Créer la session</button>
+                <div id="create-error" class="error-message"></div>
+            </form>
+        </div>
+    </div>
+
     <!-- Écran de connexion -->
-    <div id="login-screen" class="screen active">
+    <div id="login-screen" class="screen">
         <div class="login-container">
             <h1 class="logo">🥞 Crêpe-Master</h1>
             <p class="tagline">Système de gestion de file de crêpes</p>
@@ -35,6 +87,9 @@
                 </div>
                 
                 <button type="submit" class="btn-primary">Se connecter</button>
+                <button type="button" id="biometric-btn" class="btn-secondary" style="display: none;">
+                    🔐 Connexion par empreinte
+                </button>
                 <div id="login-error" class="error-message"></div>
             </form>
         </div>
@@ -116,6 +171,16 @@
                 </div>
 
                 <div class="admin-section">
+                    <h3>Tests & Outils</h3>
+                    <button id="test-vibration-btn" class="btn-admin">📳 Tester les vibrations</button>
+                    <button id="toggle-readonly-btn" class="btn-admin">📖 Activer mode lecture seule</button>
+                </div>
+
+                <div class="admin-section">
+                    <button id="manage-sessions-btn" class="btn-admin">🔧 Gérer les Sessions</button>
+                </div>
+
+                <div class="admin-section">
                     <button id="close-session-btn" class="btn-danger">🔒 Clôturer la session</button>
                     <button id="reopen-session-btn" class="btn-admin" style="display: none;">🔓 Rouvrir la session</button>
                 </div>
@@ -131,13 +196,106 @@
             
             <div id="final-results" class="final-results"></div>
             
-            <button id="close-modal-btn" class="btn-primary">Fermer</button>
+            <div style="display: flex; gap: 10px; margin-top: 20px;">
+                <button id="export-pdf-btn" class="btn-admin" style="flex: 1;">📄 Télécharger PDF</button>
+                <button id="close-modal-btn" class="btn-primary" style="flex: 1;">Fermer</button>
+            </div>
         </div>
     </div>
 
     <!-- Toast de notification -->
     <div id="toast" class="toast"></div>
 
+    <!-- Modal de gestion des sessions (Admin) -->
+<div id="sessions-modal" class="modal">
+    <div class="modal-content" style="max-width: 900px;">
+        <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px;">
+            <h2>🔧 Gestion des Sessions</h2>
+            <button id="close-sessions-modal" class="btn-secondary" style="padding: 5px 15px;">✕</button>
+        </div>
+        
+        <!-- Onglets -->
+        <div class="session-tabs">
+            <button id="sessions-list-tab" class="tab-btn active">Liste des Sessions</button>
+            <button id="current-session-tab" class="tab-btn">Session Actuelle</button>
+            <button id="create-session-tab" class="tab-btn">Créer une Session</button>
+        </div>
+
+        <!-- Onglet: Liste des sessions -->
+        <div id="sessions-list-content" class="tab-content active">
+            <div id="all-sessions-list" class="sessions-grid"></div>
+        </div>
+
+        <!-- Onglet: Session actuelle -->
+        <div id="current-session-content" class="tab-content">
+            <div class="admin-section">
+                <h3>📊 Informations</h3>
+                <div class="session-info-grid">
+                    <div>
+                        <strong>Nom:</strong>
+                        <span id="modal-session-name"></span>
+                    </div>
+                    <div>
+                        <strong>Code:</strong>
+                        <span id="modal-session-code"></span>
+                    </div>
+                    <div>
+                        <strong>Participants:</strong>
+                        <span id="modal-participants-count"></span>
+                    </div>
+                    <div>
+                        <strong>Crêpes totales:</strong>
+                        <span id="modal-total-crepes"></span>
+                    </div>
+                </div>
+            </div>
+
+            <div class="admin-section">
+                <h3>👥 Membres de la session</h3>
+                <div style="margin-bottom: 15px;">
+                    <input type="text" id="add-member-username" placeholder="Nom d'utilisateur" style="margin-right: 10px;">
+                    <input type="text" id="add-member-code" placeholder="Code" style="margin-right: 10px;">
+                    <button id="add-member-btn" class="btn-admin">➕ Ajouter</button>
+                </div>
+                <div id="modal-members-list" class="members-list"></div>
+            </div>
+
+            <div class="admin-section">
+                <h3>🧾 Export & Actions</h3>
+                <div style="display: flex; gap: 10px; flex-wrap: wrap;">
+                    <button id="export-ticket-btn" class="btn-admin">🧾 Ticket de Caisse</button>
+                    <button id="export-detailed-btn" class="btn-admin">📄 Rapport Détaillé</button>
+                    <button id="duplicate-session-btn" class="btn-admin">📋 Dupliquer</button>
+                    <button id="archive-session-btn" class="btn-admin">📦 Archiver</button>
+                    <button id="delete-session-btn" class="btn-danger">🗑️ Supprimer</button>
+                </div>
+            </div>
+        </div>
+
+        <!-- Onglet: Créer une session -->
+        <div id="create-session-content" class="tab-content">
+            <form id="admin-create-session-form">
+                <div class="input-group">
+                    <label>Nom de la session</label>
+                    <input type="text" id="admin-session-name" required>
+                </div>
+                <div class="input-group">
+                    <label>Code de session</label>
+                    <input type="text" id="admin-session-code" required>
+                </div>
+                <div class="input-group">
+                    <label>Nombre de plaques</label>
+                    <input type="number" id="admin-session-plates" min="1" max="10" value="2">
+                </div>
+                <div class="input-group">
+                    <label>Coût total (€)</label>
+                    <input type="number" id="admin-session-cost" min="0" step="0.01" value="0">
+                </div>
+                <button type="submit" class="btn-primary">✅ Créer la session</button>
+            </form>
+        </div>
+    </div>
+</div>
     <!-- Supabase Client via CDN -->
     <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
     
