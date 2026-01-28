@@ -8,6 +8,9 @@ const SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBh
 const { createClient } = window.supabase;
 const supabaseClient = createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
 
+// Configuration Discord
+const DISCORD_INVITE_URL = 'https://discord.gg/MXCfDcfeUs'; // ⚠️ À REMPLACER par votre lien Discord
+
 // ==========================================
 // État de l'application
 // ==========================================
@@ -114,7 +117,53 @@ const elements = {
     exportPdfBtn: document.getElementById('export-pdf-btn'),
     
     // Toast
-    toast: document.getElementById('toast')
+    toast: document.getElementById('toast'),
+
+
+    // Modal de modification du compte
+    editAccountModal: document.getElementById('edit-account-modal'),
+    editAccountBtn: document.getElementById('edit-account-btn'),
+    editUsernameDisplay: document.getElementById('edit-username-display'),
+    editDiscordId: document.getElementById('edit-discord-id'),
+    editNewPassword: document.getElementById('edit-new-password'),
+    editConfirmPassword: document.getElementById('edit-confirm-password'),
+    saveAccountBtn: document.getElementById('save-account-btn'),
+    editAccountError: document.getElementById('edit-account-error'),
+    closeEditAccountModal: document.getElementById('close-edit-account-modal'),
+
+    // Lien création de compte
+    createAccountLink: document.getElementById('create-account-link'),
+
+    // Modal de création de compte
+    registerModal: document.getElementById('register-modal'),
+    registerUsername: document.getElementById('register-username'),
+    registerPassword: document.getElementById('register-password'),
+    registerConfirmPassword: document.getElementById('register-confirm-password'),
+    registerDiscordId: document.getElementById('register-discord-id'),
+    discordInviteLink: document.getElementById('discord-invite-link'),
+    sendVerificationBtn: document.getElementById('send-verification-btn'),
+    registerCodeInput: document.getElementById('register-code-input'),
+    verifyAccountBtn: document.getElementById('verify-account-btn'),
+    registerError1: document.getElementById('register-error-1'),
+    registerError2: document.getElementById('register-error-2'),
+    closeRegisterModal: document.getElementById('close-register-modal'),
+    registerStep1: document.getElementById('register-step-1'),
+    registerStep2: document.getElementById('register-step-2'),
+    
+    // Reset password elements
+    resetPasswordModal: document.getElementById('reset-password-modal'),
+    resetUsername: document.getElementById('reset-username'),
+    sendDiscordCodeBtn: document.getElementById('send-discord-code-btn'),
+    resetCodeInput: document.getElementById('reset-code-input'),
+    newPasswordInput: document.getElementById('new-password-input'),
+    confirmPasswordInput: document.getElementById('confirm-password-input'),
+    resetPasswordBtn: document.getElementById('reset-password-btn'),
+    resetError1: document.getElementById('reset-error-1'),
+    resetError2: document.getElementById('reset-error-2'),
+    closeResetModal: document.getElementById('close-reset-modal'),
+    resetStep1: document.getElementById('reset-step-1'),
+    resetStep2: document.getElementById('reset-step-2'),
+    forgotPasswordLink: document.getElementById('forgot-password-link'),
 };
 
 // Ajouter dans la section "Fonctions"
@@ -2304,3 +2353,486 @@ document.getElementById('close-reset-modal').addEventListener('click', () => {
 
 document.getElementById('send-discord-code-btn').addEventListener('click', sendDiscordResetCode);
 document.getElementById('reset-password-btn').addEventListener('click', resetPasswordWithCode);
+
+// ==========================================
+// Gestion du compte utilisateur
+// ==========================================
+
+// Ouvrir la modal de modification du compte
+function openEditAccountModal() {
+    if (!appState.currentUser) return;
+    
+    elements.editUsernameDisplay.value = appState.currentUser.username;
+    elements.editDiscordId.value = appState.currentUser.discord_id || '';
+    elements.editNewPassword.value = '';
+    elements.editConfirmPassword.value = '';
+    elements.editAccountError.textContent = '';
+    
+    elements.editAccountModal.classList.add('active');
+}
+
+// Fermer la modal de modification du compte
+function closeEditAccountModal() {
+    elements.editAccountModal.classList.remove('active');
+}
+
+// Enregistrer les modifications du compte
+async function saveAccountChanges() {
+    const discordId = elements.editDiscordId.value.trim();
+    const newPassword = elements.editNewPassword.value;
+    const confirmPassword = elements.editConfirmPassword.value;
+    
+    elements.editAccountError.textContent = '';
+    
+    // Vérifier que les mots de passe correspondent si fournis
+    if (newPassword || confirmPassword) {
+        if (newPassword !== confirmPassword) {
+            elements.editAccountError.textContent = 'Les mots de passe ne correspondent pas';
+            return;
+        }
+        if (newPassword.length < 4) {
+            elements.editAccountError.textContent = 'Le mot de passe doit faire au moins 4 caractères';
+            return;
+        }
+    }
+    
+    try {
+        const updates = {};
+        
+        if (discordId) {
+            updates.discord_id = discordId;
+        }
+        
+        if (newPassword) {
+            updates.code = newPassword;
+        }
+        
+        if (Object.keys(updates).length === 0) {
+            showToast('Aucune modification à enregistrer', 'info');
+            closeEditAccountModal();
+            return;
+        }
+        
+        const { data, error } = await supabaseClient
+            .from('participants')
+            .update(updates)
+            .eq('id', appState.currentUser.id);
+        
+        if (error) throw error;
+        
+        // Mettre à jour l'état local
+        appState.currentUser = { ...appState.currentUser, ...updates };
+        
+        showToast('✅ Compte modifié avec succès !', 'success');
+        closeEditAccountModal();
+        
+    } catch (error) {
+        console.error('Erreur lors de la modification du compte:', error);
+        elements.editAccountError.textContent = 'Erreur lors de la modification';
+    }
+}
+
+// ==========================================
+// Création de compte
+// ==========================================
+
+let pendingRegistration = null;
+
+// Ouvrir la modal de création de compte
+function openRegisterModal() {
+    elements.registerStep1.style.display = 'block';
+    elements.registerStep2.style.display = 'none';
+    elements.registerUsername.value = '';
+    elements.registerPassword.value = '';
+    elements.registerConfirmPassword.value = '';
+    elements.registerDiscordId.value = '';
+    elements.registerCodeInput.value = '';
+    elements.registerError1.textContent = '';
+    elements.registerError2.textContent = '';
+    elements.discordInviteLink.href = DISCORD_INVITE_URL;
+    
+    elements.registerModal.classList.add('active');
+}
+
+// Fermer la modal de création de compte
+function closeRegisterModal() {
+    elements.registerModal.classList.remove('active');
+    pendingRegistration = null;
+}
+
+// Envoyer le code de vérification
+async function sendVerificationCode() {
+    const username = elements.registerUsername.value.trim();
+    const password = elements.registerPassword.value;
+    const confirmPassword = elements.registerConfirmPassword.value;
+    const discordId = elements.registerDiscordId.value.trim();
+    
+    elements.registerError1.textContent = '';
+    
+    // Validation
+    if (!username || !password || !discordId) {
+        elements.registerError1.textContent = 'Tous les champs sont requis';
+        return;
+    }
+    
+    if (password !== confirmPassword) {
+        elements.registerError1.textContent = 'Les mots de passe ne correspondent pas';
+        return;
+    }
+    
+    if (password.length < 4) {
+        elements.registerError1.textContent = 'Le mot de passe doit faire au moins 4 caractères';
+        return;
+    }
+    
+    try {
+        // Désactiver le bouton pendant l'envoi
+        elements.sendVerificationBtn.disabled = true;
+        elements.sendVerificationBtn.textContent = '⏳ Envoi en cours...';
+        
+        // Vérifier si l'utilisateur existe déjà
+        const { data: existing } = await supabaseClient
+            .from('participants')
+            .select('username')
+            .eq('username', username)
+            .single();
+        
+        if (existing) {
+            elements.registerError1.textContent = 'Ce nom d\'utilisateur existe déjà';
+            elements.sendVerificationBtn.disabled = false;
+            elements.sendVerificationBtn.textContent = '📨 Envoyer le code de vérification';
+            return;
+        }
+        
+        // Générer un code de vérification à 6 chiffres
+        const verificationCode = Math.floor(100000 + Math.random() * 900000).toString();
+        
+        // Sauvegarder temporairement les données
+        pendingRegistration = {
+            username,
+            password,
+            discordId,
+            verificationCode,
+            timestamp: Date.now()
+        };
+        
+        // Envoyer le code via Discord
+        const { data: functionData, error: functionError } = await supabaseClient.functions.invoke('send-discord-dm', {
+            body: {
+                discord_id: discordId,
+                message: `**Code de vérification pour créer ton compte**\n\n🔑 Ton code : **${verificationCode}**\n\nUtilise ce code pour finaliser la création de ton compte **${username}**.`,
+                participant_id: null
+            }
+        });
+        
+        if (functionError) {
+            throw new Error(functionError.message || 'Erreur lors de l\'envoi du code');
+        }
+        
+        if (!functionData.success) {
+            throw new Error(functionData.error || 'Erreur lors de l\'envoi du code');
+        }
+        
+        showToast('✅ Code envoyé sur Discord !', 'success');
+        
+        // Passer à l'étape 2
+        elements.registerStep1.style.display = 'none';
+        elements.registerStep2.style.display = 'block';
+        
+        // Réactiver le bouton
+        elements.sendVerificationBtn.disabled = false;
+        elements.sendVerificationBtn.textContent = '📨 Envoyer le code de vérification';
+        
+    } catch (error) {
+        console.error('Erreur lors de l\'envoi du code:', error);
+        elements.registerError1.textContent = error.message || 'Erreur lors de l\'envoi du code. Vérifie ton ID Discord et assure-toi d\'avoir rejoint le serveur.';
+        elements.sendVerificationBtn.disabled = false;
+        elements.sendVerificationBtn.textContent = '📨 Envoyer le code de vérification';
+    }
+}
+
+// Vérifier le code et créer le compte
+async function verifyAndCreateAccount() {
+    const code = elements.registerCodeInput.value.trim();
+    
+    elements.registerError2.textContent = '';
+    
+    if (!code) {
+        elements.registerError2.textContent = 'Entre le code de vérification';
+        return;
+    }
+    
+    if (!pendingRegistration) {
+        elements.registerError2.textContent = 'Session expirée, recommence le processus';
+        return;
+    }
+    
+    // Vérifier que la session n'est pas expirée (15 minutes)
+    if (Date.now() - pendingRegistration.timestamp > 15 * 60 * 1000) {
+        elements.registerError2.textContent = 'Code expiré, recommence le processus';
+        pendingRegistration = null;
+        return;
+    }
+    
+    if (code !== pendingRegistration.verificationCode) {
+        elements.registerError2.textContent = 'Code incorrect';
+        return;
+    }
+    
+    try {
+        // Désactiver le bouton
+        elements.verifyAccountBtn.disabled = true;
+        elements.verifyAccountBtn.textContent = '⏳ Création...';
+        
+        // Créer le compte
+        const { data, error } = await supabaseClient
+            .from('participants')
+            .insert([{
+                username: pendingRegistration.username,
+                code: pendingRegistration.password,
+                discord_id: pendingRegistration.discordId,
+                crepes_eaten: 0,
+                is_admin: false
+            }])
+            .select()
+            .single();
+        
+        if (error) throw error;
+        
+        showToast('✅ Compte créé avec succès ! Tu peux maintenant te connecter', 'success');
+        closeRegisterModal();
+        pendingRegistration = null;
+        
+        // Réactiver le bouton
+        elements.verifyAccountBtn.disabled = false;
+        elements.verifyAccountBtn.textContent = '✅ Valider mon compte';
+        
+    } catch (error) {
+        console.error('Erreur lors de la création du compte:', error);
+        elements.registerError2.textContent = 'Erreur lors de la création du compte';
+        elements.verifyAccountBtn.disabled = false;
+        elements.verifyAccountBtn.textContent = '✅ Valider mon compte';
+    }
+}
+
+// ==========================================
+// Mise à jour de la fonction de réinitialisation
+// ==========================================
+
+// Fonction pour envoyer le code de réinitialisation (remplacer l'existante si elle existe)
+async function sendResetCode() {
+    const username = elements.resetUsername.value.trim();
+    
+    if (!elements.resetError1) return; // Vérifier que l'élément existe
+    elements.resetError1.textContent = '';
+    
+    if (!username) {
+        elements.resetError1.textContent = 'Entre ton nom d\'utilisateur';
+        return;
+    }
+    
+    try {
+        elements.sendDiscordCodeBtn.disabled = true;
+        elements.sendDiscordCodeBtn.textContent = '⏳ Envoi en cours...';
+        
+        // Récupérer l'utilisateur
+        const { data: user, error } = await supabaseClient
+            .from('participants')
+            .select('*')
+            .eq('username', username)
+            .single();
+        
+        if (error || !user) {
+            elements.resetError1.textContent = 'Utilisateur introuvable';
+            elements.sendDiscordCodeBtn.disabled = false;
+            elements.sendDiscordCodeBtn.textContent = '📨 Envoyer le code';
+            return;
+        }
+        
+        if (!user.discord_id) {
+            elements.resetError1.textContent = 'Aucun ID Discord associé à ce compte';
+            elements.sendDiscordCodeBtn.disabled = false;
+            elements.sendDiscordCodeBtn.textContent = '📨 Envoyer le code';
+            return;
+        }
+        
+        // Générer un code de réinitialisation
+        const resetCode = Math.floor(100000 + Math.random() * 900000).toString();
+        
+        // Sauvegarder le code temporairement
+        sessionStorage.setItem('resetCode', resetCode);
+        sessionStorage.setItem('resetUsername', username);
+        sessionStorage.setItem('resetTimestamp', Date.now().toString());
+        
+        // Envoyer le code via Discord
+        const { data: functionData, error: functionError } = await supabaseClient.functions.invoke('send-discord-dm', {
+            body: {
+                discord_id: user.discord_id,
+                message: `**Réinitialisation de mot de passe**\n\n🔑 Ton code : **${resetCode}**\n\nUtilise ce code pour réinitialiser le mot de passe de **${username}**.`,
+                participant_id: user.id
+            }
+        });
+        
+        if (functionError) {
+            throw new Error(functionError.message || 'Erreur lors de l\'envoi du code');
+        }
+        
+        if (!functionData.success) {
+            throw new Error(functionData.error || 'Erreur lors de l\'envoi du code');
+        }
+        
+        showToast('✅ Code envoyé sur Discord !', 'success');
+        
+        // Passer à l'étape 2
+        elements.resetStep1.style.display = 'none';
+        elements.resetStep2.style.display = 'block';
+        
+        elements.sendDiscordCodeBtn.disabled = false;
+        elements.sendDiscordCodeBtn.textContent = '📨 Envoyer le code';
+        
+    } catch (error) {
+        console.error('Erreur:', error);
+        elements.resetError1.textContent = error.message || 'Erreur lors de l\'envoi du code';
+        elements.sendDiscordCodeBtn.disabled = false;
+        elements.sendDiscordCodeBtn.textContent = '📨 Envoyer le code';
+    }
+}
+
+// Fonction pour réinitialiser le mot de passe (remplacer l'existante si elle existe)
+async function resetPasswordWithCode() {
+    const code = elements.resetCodeInput.value.trim();
+    const newPassword = elements.newPasswordInput.value;
+    const confirmPassword = elements.confirmPasswordInput.value;
+    
+    if (!elements.resetError2) return;
+    elements.resetError2.textContent = '';
+    
+    if (!code || !newPassword || !confirmPassword) {
+        elements.resetError2.textContent = 'Tous les champs sont requis';
+        return;
+    }
+    
+    if (newPassword !== confirmPassword) {
+        elements.resetError2.textContent = 'Les mots de passe ne correspondent pas';
+        return;
+    }
+    
+    if (newPassword.length < 4) {
+        elements.resetError2.textContent = 'Le mot de passe doit faire au moins 4 caractères';
+        return;
+    }
+    
+    try {
+        // Vérifier le code
+        const savedCode = sessionStorage.getItem('resetCode');
+        const savedUsername = sessionStorage.getItem('resetUsername');
+        const savedTimestamp = parseInt(sessionStorage.getItem('resetTimestamp'));
+        
+        if (!savedCode || !savedUsername) {
+            elements.resetError2.textContent = 'Session expirée, recommence le processus';
+            return;
+        }
+        
+        // Vérifier que le code n'est pas expiré (10 minutes)
+        if (Date.now() - savedTimestamp > 10 * 60 * 1000) {
+            elements.resetError2.textContent = 'Code expiré, recommence le processus';
+            sessionStorage.removeItem('resetCode');
+            sessionStorage.removeItem('resetUsername');
+            sessionStorage.removeItem('resetTimestamp');
+            return;
+        }
+        
+        if (code !== savedCode) {
+            elements.resetError2.textContent = 'Code incorrect';
+            return;
+        }
+        
+        // Mettre à jour le mot de passe
+        const { error } = await supabaseClient
+            .from('participants')
+            .update({ code: newPassword })
+            .eq('username', savedUsername);
+        
+        if (error) throw error;
+        
+        // Nettoyer le sessionStorage
+        sessionStorage.removeItem('resetCode');
+        sessionStorage.removeItem('resetUsername');
+        sessionStorage.removeItem('resetTimestamp');
+        
+        showToast('✅ Mot de passe réinitialisé avec succès !', 'success');
+        closeResetPasswordModal();
+        
+    } catch (error) {
+        console.error('Erreur:', error);
+        elements.resetError2.textContent = 'Erreur lors de la réinitialisation';
+    }
+}
+
+// ==========================================
+// Event Listeners - Gestion du compte
+// ==========================================
+
+// Attendre que le DOM soit chargé
+document.addEventListener('DOMContentLoaded', () => {
+    // Bouton de modification du compte
+    elements.editAccountBtn?.addEventListener('click', openEditAccountModal);
+    elements.closeEditAccountModal?.addEventListener('click', closeEditAccountModal);
+    elements.saveAccountBtn?.addEventListener('click', saveAccountChanges);
+
+    // Lien de création de compte
+    elements.createAccountLink?.addEventListener('click', (e) => {
+        e.preventDefault();
+        console.log('Ouverture modal création compte');
+        openRegisterModal();
+    });
+
+    // Lien mot de passe oublié
+    elements.forgotPasswordLink?.addEventListener('click', (e) => {
+        e.preventDefault();
+        console.log('Ouverture modal reset password');
+        openResetPasswordModal();
+    });
+
+    // Modal de création de compte
+    elements.closeRegisterModal?.addEventListener('click', closeRegisterModal);
+    elements.sendVerificationBtn?.addEventListener('click', sendVerificationCode);
+    elements.verifyAccountBtn?.addEventListener('click', verifyAndCreateAccount);
+
+    // Modal reset password
+    elements.closeResetModal?.addEventListener('click', closeResetPasswordModal);
+    elements.sendDiscordCodeBtn?.addEventListener('click', sendResetCode);
+    elements.resetPasswordBtn?.addEventListener('click', resetPasswordWithCode);
+
+    // Fermer les modales en cliquant en dehors
+    window.addEventListener('click', (e) => {
+        if (e.target === elements.editAccountModal) {
+            closeEditAccountModal();
+        }
+        if (e.target === elements.registerModal) {
+            closeRegisterModal();
+        }
+        if (e.target === elements.resetPasswordModal) {
+            closeResetPasswordModal();
+        }
+    });
+});
+
+// Fonction pour ouvrir la modal de reset password
+function openResetPasswordModal() {
+    elements.resetStep1.style.display = 'block';
+    elements.resetStep2.style.display = 'none';
+    elements.resetUsername.value = '';
+    elements.resetCodeInput.value = '';
+    elements.newPasswordInput.value = '';
+    elements.confirmPasswordInput.value = '';
+    elements.resetError1.textContent = '';
+    elements.resetError2.textContent = '';
+    
+    elements.resetPasswordModal.classList.add('active');
+}
+
+// Fonction pour fermer la modal de reset password
+function closeResetPasswordModal() {
+    elements.resetPasswordModal.classList.remove('active');
+}

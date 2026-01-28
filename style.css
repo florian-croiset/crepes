@@ -1086,3 +1086,59 @@ main {
 .reset-step.active {
     display: block;
 }
+
+/* Modales de compte */
+.register-step {
+    animation: fadeIn 0.3s ease;
+}
+
+.modal-info {
+    background: rgba(255, 255, 255, 0.05);
+    padding: 12px;
+    border-radius: 8px;
+    margin-bottom: 20px;
+    font-size: 0.9rem;
+    color: var(--text-secondary);
+    text-align: center;
+    line-height: 1.5;
+}
+
+input:disabled {
+    background: rgba(255, 255, 255, 0.05) !important;
+    cursor: not-allowed;
+    opacity: 0.6;
+    color: var(--text-secondary);
+}
+
+.input-group label {
+    display: block;
+    margin-bottom: 8px;
+    color: var(--text-primary);
+    font-weight: 500;
+    font-size: 0.95rem;
+}
+
+.input-group small {
+    font-size: 0.85rem;
+    line-height: 1.4;
+    color: var(--text-secondary);
+}
+
+/* Bouton paramètres dans le header */
+#edit-account-btn {
+    padding: 8px 12px;
+    font-size: 1.2rem;
+    min-width: auto;
+}
+
+/* Animation fade in */
+@keyframes fadeIn {
+    from {
+        opacity: 0;
+        transform: translateY(-10px);
+    }
+    to {
+        opacity: 1;
+        transform: translateY(0);
+    }
+}

@@ -88,11 +88,12 @@
                 </div>
                 
                 <button type="submit" class="btn-primary">Se connecter</button>
-                <button type="button" id="biometric-btn" class="btn-secondary" style="display: none;">
+                <!--<button type="button" id="biometric-btn" class="btn-secondary" style="display: none;">
                     🔐 Connexion par empreinte
-                </button>
+                </button>-->
                 <div id="login-error" class="error-message"></div>
                 <a href="#" id="forgot-password-link" style="display: block; text-align: center; margin-top: 15px; color: var(--accent-primary); text-decoration: none; font-size: 0.9rem;">Mot de passe oublié ?</a>
+                <a href="#" id="create-account-link" style="display: block; text-align: center; margin-top: 10px; color: var(--accent-secondary); text-decoration: none; font-size: 0.9rem;">Créer un compte</a>
             </form>
         </div>
     </div>
@@ -126,6 +127,81 @@
         </div>
     </div>
 
+
+    <!-- Modal de modification du compte -->
+    <div id="edit-account-modal" class="modal">
+        <div class="modal-content" style="max-width: 500px;">
+            <h2>⚙️ Modifier mon compte</h2>
+            <div class="input-group">
+                <label>Nom d'utilisateur (non modifiable)</label>
+                <input type="text" id="edit-username-display" disabled>
+            </div>
+            <div class="input-group">
+                <label>ID Discord</label>
+                <input type="text" id="edit-discord-id" placeholder="Ton ID Discord">
+                <small style="color: var(--text-secondary); display: block; margin-top: 5px;">
+                    Pour obtenir ton ID: Active le mode développeur dans Discord (Paramètres → Avancés → Mode développeur), 
+                    puis clique droit sur ton profil → Copier l'identifiant
+                </small>
+            </div>
+            <div class="input-group">
+                <label>Nouveau mot de passe (laisser vide pour ne pas changer)</label>
+                <input type="password" id="edit-new-password" placeholder="Nouveau mot de passe" autocomplete="off">
+            </div>
+            <div class="input-group">
+                <label>Confirmer le nouveau mot de passe</label>
+                <input type="password" id="edit-confirm-password" placeholder="Confirmer" autocomplete="off">
+            </div>
+            <button id="save-account-btn" class="btn-primary">✅ Enregistrer</button>
+            <div id="edit-account-error" class="error-message"></div>
+            <button id="close-edit-account-modal" class="btn-secondary" style="margin-top: 20px;">Annuler</button>
+        </div>
+    </div>
+
+    <!-- Modal de création de compte -->
+    <div id="register-modal" class="modal">
+        <div class="modal-content" style="max-width: 500px;">
+            <h2>✨ Créer un compte</h2>
+            <div id="register-step-1" class="register-step active">
+                <p class="modal-info">Rejoins d'abord notre serveur Discord pour valider ton compte</p>
+                <div class="input-group">
+                    <label>Nom d'utilisateur</label>
+                    <input type="text" id="register-username" placeholder="Ton nom d'utilisateur" autocomplete="off">
+                </div>
+                <div class="input-group">
+                    <label>Mot de passe</label>
+                    <input type="password" id="register-password" placeholder="Ton mot de passe" autocomplete="off">
+                </div>
+                <div class="input-group">
+                    <label>Confirmer le mot de passe</label>
+                    <input type="password" id="register-confirm-password" placeholder="Confirmer" autocomplete="off">
+                </div>
+                <div class="input-group">
+                    <label>ID Discord</label>
+                    <input type="text" id="register-discord-id" placeholder="Ton ID Discord">
+                    <small style="color: var(--text-secondary); display: block; margin-top: 5px;">
+                        Pour obtenir ton ID: Active le mode développeur dans Discord (Paramètres → Avancés → Mode développeur), 
+                        puis clique droit sur ton profil → Copier l'identifiant
+                    </small>
+                </div>
+                <a href="#" id="discord-invite-link" class="btn-primary" style="display: block; text-align: center; margin-bottom: 15px; text-decoration: none;" target="_blank">
+                    🎮 Rejoindre le serveur Discord
+                </a>
+                <button id="send-verification-btn" class="btn-primary">📨 Envoyer le code de vérification</button>
+                <div id="register-error-1" class="error-message"></div>
+            </div>
+            <div id="register-step-2" class="register-step" style="display: none;">
+                <p class="modal-info">Entre le code reçu sur Discord pour finaliser la création de ton compte</p>
+                <div class="input-group">
+                    <input type="text" id="register-code-input" placeholder="Code de vérification" autocomplete="off">
+                </div>
+                <button id="verify-account-btn" class="btn-primary">✅ Valider mon compte</button>
+                <div id="register-error-2" class="error-message"></div>
+            </div>
+            <button id="close-register-modal" class="btn-secondary" style="margin-top: 20px;">Annuler</button>
+        </div>
+    </div>
+
     <!-- Écran principal -->
     <div id="main-screen" class="screen">
         <header>
@@ -133,6 +209,7 @@
                 <h1>🥞 Crêpe-Master</h1>
                 <div class="user-info">
                     <span id="current-username"></span>
+                    <button id="edit-account-btn" class="btn-secondary" style="margin-right: 10px;">⚙️</button>
                     <button id="logout-btn" class="btn-logout">Déconnexion</button>
                 </div>
             </div>
