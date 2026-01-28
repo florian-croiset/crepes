@@ -2491,14 +2491,28 @@ async function sendVerificationCode() {
         elements.sendVerificationBtn.textContent = '⏳ Envoi en cours...';
         
         // Vérifier si l'utilisateur existe déjà
-        const { data: existing } = await supabaseClient
+        const { data: existingUsername } = await supabaseClient
             .from('participants')
             .select('username')
             .eq('username', username)
             .single();
         
-        if (existing) {
+        if (existingUsername) {
             elements.registerError1.textContent = 'Ce nom d\'utilisateur existe déjà';
+            elements.sendVerificationBtn.disabled = false;
+            elements.sendVerificationBtn.textContent = '📨 Envoyer le code de vérification';
+            return;
+        }
+        
+        // Vérifier si l'ID Discord est déjà utilisé
+        const { data: existingDiscord } = await supabaseClient
+            .from('participants')
+            .select('username, discord_id')
+            .eq('discord_id', discordId)
+            .single();
+        
+        if (existingDiscord) {
+            elements.registerError1.textContent = `Cet ID Discord est déjà utilisé par le compte "${existingDiscord.username}"`;
             elements.sendVerificationBtn.disabled = false;
             elements.sendVerificationBtn.textContent = '📨 Envoyer le code de vérification';
             return;
@@ -2773,49 +2787,46 @@ async function resetPasswordWithCode() {
 // Event Listeners - Gestion du compte
 // ==========================================
 
-// Attendre que le DOM soit chargé
-document.addEventListener('DOMContentLoaded', () => {
-    // Bouton de modification du compte
-    elements.editAccountBtn?.addEventListener('click', openEditAccountModal);
-    elements.closeEditAccountModal?.addEventListener('click', closeEditAccountModal);
-    elements.saveAccountBtn?.addEventListener('click', saveAccountChanges);
+// Bouton de modification du compte
+elements.editAccountBtn?.addEventListener('click', openEditAccountModal);
+elements.closeEditAccountModal?.addEventListener('click', closeEditAccountModal);
+elements.saveAccountBtn?.addEventListener('click', saveAccountChanges);
 
-    // Lien de création de compte
-    elements.createAccountLink?.addEventListener('click', (e) => {
-        e.preventDefault();
-        console.log('Ouverture modal création compte');
-        openRegisterModal();
-    });
+// Lien de création de compte
+elements.createAccountLink?.addEventListener('click', (e) => {
+    e.preventDefault();
+    console.log('Ouverture modal création compte');
+    openRegisterModal();
+});
 
-    // Lien mot de passe oublié
-    elements.forgotPasswordLink?.addEventListener('click', (e) => {
-        e.preventDefault();
-        console.log('Ouverture modal reset password');
-        openResetPasswordModal();
-    });
+// Lien mot de passe oublié
+elements.forgotPasswordLink?.addEventListener('click', (e) => {
+    e.preventDefault();
+    console.log('Ouverture modal reset password');
+    openResetPasswordModal();
+});
 
-    // Modal de création de compte
-    elements.closeRegisterModal?.addEventListener('click', closeRegisterModal);
-    elements.sendVerificationBtn?.addEventListener('click', sendVerificationCode);
-    elements.verifyAccountBtn?.addEventListener('click', verifyAndCreateAccount);
+// Modal de création de compte
+elements.closeRegisterModal?.addEventListener('click', closeRegisterModal);
+elements.sendVerificationBtn?.addEventListener('click', sendVerificationCode);
+elements.verifyAccountBtn?.addEventListener('click', verifyAndCreateAccount);
 
-    // Modal reset password
-    elements.closeResetModal?.addEventListener('click', closeResetPasswordModal);
-    elements.sendDiscordCodeBtn?.addEventListener('click', sendResetCode);
-    elements.resetPasswordBtn?.addEventListener('click', resetPasswordWithCode);
+// Modal reset password
+elements.closeResetModal?.addEventListener('click', closeResetPasswordModal);
+elements.sendDiscordCodeBtn?.addEventListener('click', sendResetCode);
+elements.resetPasswordBtn?.addEventListener('click', resetPasswordWithCode);
 
-    // Fermer les modales en cliquant en dehors
-    window.addEventListener('click', (e) => {
-        if (e.target === elements.editAccountModal) {
-            closeEditAccountModal();
-        }
-        if (e.target === elements.registerModal) {
-            closeRegisterModal();
-        }
-        if (e.target === elements.resetPasswordModal) {
-            closeResetPasswordModal();
-        }
-    });
+// Fermer les modales en cliquant en dehors
+window.addEventListener('click', (e) => {
+    if (e.target === elements.editAccountModal) {
+        closeEditAccountModal();
+    }
+    if (e.target === elements.registerModal) {
+        closeRegisterModal();
+    }
+    if (e.target === elements.resetPasswordModal) {
+        closeResetPasswordModal();
+    }
 });
 
 // Fonction pour ouvrir la modal de reset password
